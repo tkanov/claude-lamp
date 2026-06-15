@@ -5,7 +5,9 @@ import Cocoa
 //   notify -> red    (Claude needs input/attention — blinks until acknowledged)
 //   done   -> green  (turn finished — auto-dims after greenTimeout)
 //   off    -> dim idle bar
-// All look-and-feel knobs are the constants below.
+// The lamp remembers which app was frontmost when it lit (the terminal running
+// Claude): bringing that terminal back to focus clears the lamp, and clicking
+// the bar jumps to it. All look-and-feel knobs are the constants below.
 
 let stateFile = ("~/.claude/lamp/state" as NSString).expandingTildeInPath
 let blinkInterval = 0.25   // half-cycle of the pulse, seconds
@@ -23,6 +25,7 @@ final class Lamp: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var blink: Timer?, timeoutTimer: Timer?, phase: TimeInterval = 0, color = idleColor
     var lastContent = "", lastMtime: TimeInterval = -1
+    var targetApp: NSRunningApplication?   // the terminal that lit the lamp
 
     override init() {
         super.init()
@@ -32,6 +35,9 @@ final class Lamp: NSObject {
             b.action = #selector(click)
             b.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(appActivated(_:)),
+            name: NSWorkspace.didActivateApplicationNotification, object: nil)
         Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in self?.poll() }
         poll()
     }
@@ -65,6 +71,9 @@ final class Lamp: NSObject {
 
     func start(_ c: NSColor, autoStopAfter: TimeInterval?) {
         color = c; phase = 0
+        if let front = NSWorkspace.shared.frontmostApplication, front != NSRunningApplication.current {
+            targetApp = front   // whoever is frontmost as Claude lights up is the terminal
+        }
         blink?.invalidate()
         blink = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] _ in
             guard let s = self else { return }
@@ -90,6 +99,14 @@ final class Lamp: NSObject {
         item.button?.image = Lamp.bar(idleColor)
     }
 
+    // Clear the lamp when the terminal that lit it regains focus.
+    @objc func appActivated(_ note: Notification) {
+        guard blink != nil,
+              let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+              app.bundleIdentifier != nil, app.bundleIdentifier == targetApp?.bundleIdentifier else { return }
+        stop()
+    }
+
     @objc func click() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let m = NSMenu()
@@ -98,7 +115,8 @@ final class Lamp: NSObject {
             item.button?.performClick(nil)
             item.menu = nil            // detach so left-click dismisses next time
         } else {
-            stop()                     // left-click acknowledges the current notification
+            targetApp?.activate()      // jump to the terminal that lit the lamp
+            stop()                     // and acknowledge the light
         }
     }
 }

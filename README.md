@@ -20,7 +20,7 @@ It puts a small pulsing bar in your menu bar that lights up on Claude Code activ
 ## Install
 
 ```bash
-git clone https://github.com/<your-github-username>/claude-lamp.git
+git clone https://github.com/tkanov/claude-lamp.git
 cd claude-lamp
 ./install.sh
 ```
@@ -39,9 +39,12 @@ For full transparency, `install.sh`:
 
 ## Using it
 
-- **Left-click** the bar to dismiss the current light.
+- **Left-click** the bar to jump to the terminal that lit it and clear the light in one go.
+- **Refocus that terminal** by any means and the light clears on its own.
 - **Right-click** for Quit.
-- Red persists until you act. Green clears when you send your next prompt (or after the timeout).
+- Red persists until you act. Green clears when you send your next prompt or after the timeout.
+
+The lamp treats whichever app was frontmost when it lit as "the terminal." That is reliable for turn-done (you were just there); the soft spot is an idle notification that arrives after you have already switched away, which can capture the wrong app.
 
 ## Tuning
 
@@ -59,7 +62,7 @@ A Claude Code hook is a short-lived command, so it cannot itself hold an animate
 1. **A persistent menu-bar app** that owns the status item and runs the fade animation.
 2. **Hooks** that, on each event, write one word (`notify` / `done` / `off`) to `~/.claude/lamp/state`.
 
-The app polls that file and animates the bar to match. That split is the whole design.
+The app polls that file and animates the bar to match. It also watches `NSWorkspace` app-activation events so it can clear itself (and know where to jump on click) when the terminal regains focus. That split is the whole design.
 
 ## Uninstall
 
