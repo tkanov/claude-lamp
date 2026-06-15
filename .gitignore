@@ -6,4 +6,8 @@ claude-lamp-hooks
 
 # Runtime / local state
 state
+term
 settings.json.bak
+
+# Raw screen recordings (ship a GIF/MP4 instead — see README)
+*.mov
