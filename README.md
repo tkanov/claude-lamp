@@ -12,6 +12,8 @@ A small bar pulses on activity, styled like an old incandescent indicator behind
 | **Green** | Turn finished. Auto-dims after ~2.5 min if you step away. |
 | **Dim grey** | Idle. |
 
+Running several sessions at once? The bar shows the most urgent state across all of them: red if *any* session needs you, otherwise green if any just finished.
+
 ## Requirements
 
 macOS, plus Xcode Command Line Tools for `swiftc`: `xcode-select --install`.
@@ -34,11 +36,10 @@ Restart Claude Code afterward so the hooks load. Nothing prebuilt is downloaded:
 
 ## Using it
 
-- **Left-click** the bar to jump to the terminal that lit it and clear the light.
-- **Refocus that terminal** any other way and it also clears.
+- **Left-click** the bar to jump to the longest-waiting session's terminal and clear that signal.
 - **Right-click** to Quit.
 
-Red persists until you act; green clears on your next prompt or the timeout. The lamp assumes the app frontmost when it lit is the terminal. That holds for turn-done; an idle notification fired after you switched away can capture the wrong app.
+Each session clears itself through its own hooks (your next prompt there, or the green timeout). Running a single session, refocusing its terminal also clears it after a brief grace; with multiple sessions active that auto-clear stands down, because focusing one window can't say which session you meant.
 
 ## Tuning
 
@@ -51,7 +52,7 @@ launchctl kickstart -k gui/$(id -u)/claude-lamp
 
 ## How it works
 
-A Claude Code hook is a short-lived command and can't hold an animated icon, so there are two pieces: a persistent menu-bar app that runs the animation, and hooks that write one word (`notify` / `done` / `off`) to `~/.claude/lamp/state` on each event. The app polls that file, and watches `NSWorkspace` activation events for the focus-clear and click-to-front behavior.
+A Claude Code hook is a short-lived command and can't hold an animated icon, so there are two pieces: a persistent menu-bar app that runs the animation, and hooks that write a state word plus the terminal's bundle id to `~/.claude/lamp/sessions/<session-id>`, one file per session. The app polls that directory and shows the most urgent state across sessions (red outranks green), pruning each as it clears or times out.
 
 ## Uninstall
 
@@ -63,7 +64,9 @@ Restart Claude Code afterward to drop the hooks from the running session.
 
 ## Caveats
 
-- One lamp per machine: all Claude Code windows share the one state file (last writer wins, any prompt clears it). Fine one session at a time.
+- The dot is a single color: with parallel sessions it shows the most urgent (red over green), not a count.
+- Click raises the session's terminal *app*, not a specific window, so across several windows of one app it can't jump to the exact one; per-session clearing there comes from each session's own hooks.
+- A session that exits without firing its `off` hook can leave a stale red; left-clicking the bar clears the shown signal.
 - macOS only (AppKit menu bar).
 
 ## License

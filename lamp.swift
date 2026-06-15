@@ -1,33 +1,35 @@
 import Cocoa
 
 // claude-lamp — a menu-bar status light for Claude Code.
-// Reads one word from ~/.claude/lamp/state and shows it as a pulsing bar:
-//   notify -> red    (Claude needs input/attention — blinks until acknowledged)
-//   done   -> green  (turn finished — auto-dims after greenTimeout)
-//   off    -> dim idle bar
-// The hook also records the terminal's bundle id in ~/.claude/lamp/term; the
-// lamp clears whenever that terminal is frontmost and jumps to it on click.
-// All look-and-feel knobs are the constants below.
+// Each Claude session's hooks write its state to ~/.claude/lamp/sessions/<id>
+// (one word + the terminal's bundle id). The lamp aggregates across sessions:
+//   any session needs input -> red    (pulses until that session is handled)
+//   else any session is done -> green  (auto-dims per session after greenTimeout)
+//   else                     -> dim idle bar
+// Red outranks green. The click target and the single-session focus-clear use
+// the longest-waiting session of the shown color. Knobs are the constants below.
 
-let stateFile = ("~/.claude/lamp/state" as NSString).expandingTildeInPath
-let termFile  = ("~/.claude/lamp/term" as NSString).expandingTildeInPath
+let sessionsDir = ("~/.claude/lamp/sessions" as NSString).expandingTildeInPath
 let blinkInterval = 0.25   // half-cycle of the pulse, seconds
 let frameInterval = 1.0/30 // redraw cadence for the fade
 let minAlpha = 0.05        // dimmest point of the fade (filament never fully cools)
 let holdFrac = 0.5         // fraction of the cycle held at full brightness before fading
 let coolTau  = 0.05        // exponential cool-down time constant, seconds (smaller = snuffs out faster)
-let pollInterval  = 0.25   // state-file re-read cadence
-let greenTimeout  = 150.0  // auto-stop the green "turn done" pulse after this many seconds
-let graceDelay    = 2.0    // keep the lamp lit at least this long before a frontmost terminal clears it
+let pollInterval  = 0.25   // sessions re-scan cadence
+let greenTimeout  = 150.0  // auto-dim a session's green "done" after this many seconds
+let graceDelay    = 2.0    // keep a single-session lamp lit this long before a frontmost terminal clears it
 let idleColor   = NSColor(white: 0.42, alpha: 1.0)                             // dim idle bar
 let notifyColor = NSColor(srgbRed: 0.88, green: 0.27, blue: 0.22, alpha: 1.0)  // red: input/attention needed
 let doneColor   = NSColor(srgbRed: 0.00, green: 0.70, blue: 0.32, alpha: 1.0)  // green: turn done
 
+struct Session { let word: String; let bundle: String; let mtime: TimeInterval; let path: String }
+
 final class Lamp: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    var blink: Timer?, timeoutTimer: Timer?, phase: TimeInterval = 0, color = idleColor
-    var lastContent = "", lastMtime: TimeInterval = -1
-    var targetBundleId: String?   // bundle id of the terminal that lit the lamp (from the hook)
+    var blink: Timer?, phase: TimeInterval = 0, color = idleColor
+    var currentKey: String?     // "notify" / "done" / nil — what the lamp is showing now
+    var targetBundle: String?   // terminal of the session to jump to on click
+    var targetPath: String?     // that session's state file, cleared when clicked
 
     override init() {
         super.init()
@@ -51,31 +53,66 @@ final class Lamp: NSObject {
         return img
     }
 
+    func scanSessions() -> [Session] {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: sessionsDir) else { return [] }
+        var out: [Session] = []
+        for name in names {
+            let path = sessionsDir + "/" + name
+            guard let attrs = try? fm.attributesOfItem(atPath: path),
+                  let d = attrs[.modificationDate] as? Date,
+                  let raw = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\t")
+            out.append(Session(word: parts.first ?? "",
+                               bundle: parts.count > 1 ? parts[1] : "",
+                               mtime: d.timeIntervalSince1970, path: path))
+        }
+        return out
+    }
+
     func poll() {
-        // Clear as soon as the terminal that lit the lamp is frontmost.
-        if blink != nil, phase >= graceDelay, let id = targetBundleId,
-           NSWorkspace.shared.frontmostApplication?.bundleIdentifier == id {
-            stop()
+        let now = Date().timeIntervalSince1970
+        let fm = FileManager.default
+
+        // Per-session green auto-dim: drop "done" sessions past the timeout.
+        var sessions = scanSessions()
+        for s in sessions where s.word == "done" && now - s.mtime > greenTimeout {
+            try? fm.removeItem(atPath: s.path)
         }
-        var content = "off", mtime: TimeInterval = -1
-        if let a = try? FileManager.default.attributesOfItem(atPath: stateFile),
-           let d = a[.modificationDate] as? Date {
-            mtime = d.timeIntervalSince1970
-            content = (try? String(contentsOfFile: stateFile, encoding: .utf8))?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "off"
+        sessions.removeAll { $0.word == "done" && now - $0.mtime > greenTimeout }
+
+        let reds = sessions.filter { $0.word == "notify" }.sorted { $0.mtime < $1.mtime }
+        let greens = sessions.filter { $0.word == "done" }.sorted { $0.mtime < $1.mtime }
+        let active = reds + greens
+
+        // Focus-clear only when exactly one session is active (otherwise focusing
+        // one window of an app can't tell us which session was attended).
+        if active.count == 1, blink != nil, phase >= graceDelay, let only = active.first,
+           !only.bundle.isEmpty, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == only.bundle {
+            try? fm.removeItem(atPath: only.path)
+            apply(nil, winner: nil)
+            return
         }
-        guard content != lastContent || mtime != lastMtime else { return }
-        lastContent = content; lastMtime = mtime
-        switch content {
-        case "notify": start(notifyColor, autoStopAfter: nil)          // input/attention needed — blinks until acknowledged
-        case "done":   start(doneColor, autoStopAfter: greenTimeout)   // turn finished — auto-dims if ignored
+
+        // Red outranks green; jump/clear target is the longest-waiting of the shown color.
+        let winner = reds.first ?? greens.first
+        apply(winner?.word, winner: winner)
+    }
+
+    func apply(_ key: String?, winner: Session?) {
+        targetBundle = (winner?.bundle.isEmpty == false) ? winner?.bundle : nil
+        targetPath = winner?.path
+        guard key != currentKey else { return }   // same color — keep the pulse running
+        currentKey = key
+        switch key {
+        case "notify": start(notifyColor)
+        case "done":   start(doneColor)
         default:       stop()
         }
     }
 
-    func start(_ c: NSColor, autoStopAfter: TimeInterval?) {
+    func start(_ c: NSColor) {
         color = c; phase = 0
-        targetBundleId = Lamp.terminalBundleId()   // the terminal Claude is running in, per the hook
         blink?.invalidate()
         blink = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] _ in
             guard let s = self else { return }
@@ -89,22 +126,11 @@ final class Lamp: NSObject {
             else                        { glow = exp(-(t - riseT - holdT) / coolTau) }  // exponential cool-down
             s.item.button?.image = Lamp.bar(s.color.withAlphaComponent(minAlpha + (1 - minAlpha) * glow))
         }
-        timeoutTimer?.invalidate(); timeoutTimer = nil
-        if let t = autoStopAfter {
-            timeoutTimer = Timer.scheduledTimer(withTimeInterval: t, repeats: false) { [weak self] _ in self?.stop() }
-        }
     }
 
     func stop() {
         blink?.invalidate(); blink = nil
-        timeoutTimer?.invalidate(); timeoutTimer = nil
         item.button?.image = Lamp.bar(idleColor)
-    }
-
-    static func terminalBundleId() -> String? {
-        let id = (try? String(contentsOfFile: termFile, encoding: .utf8))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (id?.isEmpty == false) ? id : nil
     }
 
     @objc func click() {
@@ -115,10 +141,11 @@ final class Lamp: NSObject {
             item.button?.performClick(nil)
             item.menu = nil            // detach so left-click dismisses next time
         } else {
-            if let id = targetBundleId {
+            if let id = targetBundle {
                 NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate()
             }
-            stop()                     // jump to the terminal and acknowledge the light
+            if let p = targetPath { try? FileManager.default.removeItem(atPath: p) }  // acknowledge this signal
+            // the next poll re-aggregates the remaining sessions
         }
     }
 }
