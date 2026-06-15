@@ -1,0 +1,9 @@
+# Local build artifacts (only appear if you compile inside the repo)
+claude-lamp
+claude-lamp-hooks
+*.o
+*.dSYM/
+
+# Runtime / local state
+state
+settings.json.bak
