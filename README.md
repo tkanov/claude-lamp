@@ -16,11 +16,13 @@ A small bar pulses on activity, styled like an old incandescent indicator behind
 
 | Bar | Meaning |
 |-----|---------|
-| **Red** | Claude needs you (permission prompt or idle wait). Pulses until acknowledged. |
-| **Green** | Turn finished. Auto-dims after ~2.5 min if you step away. |
-| **Dim grey** | Idle. |
+| **Red** | Claude is blocked on a permission prompt. Pulses until you act. |
+| **Green** | Turn finished, your move. Fades on its own after a couple of minutes. |
+| **Dim grey** | Idle, nothing pending. |
 
-Running several sessions at once? The bar shows the most urgent state across all of them: red if *any* session needs you, otherwise green if any just finished.
+Claude Code also emits a "waiting for your input" nudge ~60s after every turn; that one is deliberately ignored, so a finished session shows green and fades instead of nagging you in red forever.
+
+Running several sessions at once? The bar shows the most urgent state across all of them: red if *any* session is blocked on a permission, otherwise green if any just finished.
 
 ## Requirements
 

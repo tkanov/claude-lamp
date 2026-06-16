@@ -17,6 +17,7 @@ let holdFrac = 0.5         // fraction of the cycle held at full brightness befo
 let coolTau  = 0.05        // exponential cool-down time constant, seconds (smaller = snuffs out faster)
 let pollInterval  = 0.25   // sessions re-scan cadence
 let greenTimeout  = 150.0  // auto-dim a session's green "done" after this many seconds
+let redTimeout    = 600.0  // self-heal: drop a red older than this (abandoned permission prompt)
 let graceDelay    = 2.0    // keep a single-session lamp lit this long before a frontmost terminal clears it
 let idleColor   = NSColor(white: 0.42, alpha: 1.0)                             // dim idle bar
 let notifyColor = NSColor(srgbRed: 0.88, green: 0.27, blue: 0.22, alpha: 1.0)  // red: input/attention needed
@@ -74,12 +75,15 @@ final class Lamp: NSObject {
         let now = Date().timeIntervalSince1970
         let fm = FileManager.default
 
-        // Per-session green auto-dim: drop "done" sessions past the timeout.
-        var sessions = scanSessions()
-        for s in sessions where s.word == "done" && now - s.mtime > greenTimeout {
-            try? fm.removeItem(atPath: s.path)
+        // Per-session auto-dim: greens after greenTimeout, reds after redTimeout
+        // (a self-heal backstop so an abandoned permission-red can't pin the lamp).
+        func expired(_ s: Session) -> Bool {
+            (s.word == "done" && now - s.mtime > greenTimeout)
+                || (s.word == "notify" && now - s.mtime > redTimeout)
         }
-        sessions.removeAll { $0.word == "done" && now - $0.mtime > greenTimeout }
+        var sessions = scanSessions()
+        for s in sessions where expired(s) { try? fm.removeItem(atPath: s.path) }
+        sessions.removeAll(where: expired)
 
         let reds = sessions.filter { $0.word == "notify" }.sorted { $0.mtime < $1.mtime }
         let greens = sessions.filter { $0.word == "done" }.sorted { $0.mtime < $1.mtime }
