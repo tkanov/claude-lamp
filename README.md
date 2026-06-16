@@ -2,6 +2,10 @@
 
 A menu-bar status light for [Claude Code](https://claude.com/claude-code) on macOS. Glance up to see whether Claude needs you, without watching the terminal.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="claude-lamp in the macOS menu bar: the bar glows red when Claude needs you and green when a turn finishes" width="776">
+</p>
+
 A small bar pulses on activity, styled like an old incandescent indicator behind a diffuser: quick flash, brief hold, exponential cool-down.
 
 ## What it shows
