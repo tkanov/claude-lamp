@@ -39,7 +39,7 @@ Restart Claude Code afterward so the hooks load. Nothing prebuilt is downloaded:
 - **Left-click** the bar to jump to the longest-waiting session's terminal and clear that signal.
 - **Right-click** to Quit.
 
-Each session clears itself through its own hooks (your next prompt there, or the green timeout). Running a single session, refocusing its terminal also clears it after a brief grace; with multiple sessions active that auto-clear stands down, because focusing one window can't say which session you meant.
+Red persists until you act on it: submit a prompt in that session (its `off` hook) or click the lamp. Green clears on your next prompt, on the timeout, or, running a single session, when you focus its terminal after a brief grace. With multiple sessions active that focus-clear stands down, because focusing one window can't say which session you meant.
 
 ## Tuning
 

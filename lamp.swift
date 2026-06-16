@@ -85,9 +85,12 @@ final class Lamp: NSObject {
         let greens = sessions.filter { $0.word == "done" }.sorted { $0.mtime < $1.mtime }
         let active = reds + greens
 
-        // Focus-clear only when exactly one session is active (otherwise focusing
-        // one window of an app can't tell us which session was attended).
-        if active.count == 1, blink != nil, phase >= graceDelay, let only = active.first,
+        // Focus-clear the green "done" when its single session's terminal is
+        // frontmost (after a grace). Red ("needs input") is left to nag until you
+        // act on it — submit a prompt (its off hook) or click the lamp. Only with
+        // one active session, since focusing one window can't say which you meant.
+        if active.count == 1, let only = active.first, only.word == "done",
+           blink != nil, phase >= graceDelay,
            !only.bundle.isEmpty, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == only.bundle {
             try? fm.removeItem(atPath: only.path)
             apply(nil, winner: nil)
