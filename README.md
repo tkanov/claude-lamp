@@ -4,7 +4,7 @@
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-F05138?logo=swift&logoColor=white)
 
-A menu-bar status light for [Claude Code](https://claude.com/claude-code) on macOS. Glance up to see whether Claude needs you, without watching the terminal.
+A menu-bar status light and notification indicator for [Claude Code](https://claude.com/claude-code) on macOS, a glanceable way to know the moment Claude needs your input or finishes a turn, without watching the terminal.
 
 <p align="center">
   <img src="assets/demo.gif" alt="claude-lamp in the macOS menu bar: the bar glows red when Claude needs you and green when a turn finishes" width="310">
