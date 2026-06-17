@@ -17,10 +17,10 @@ A small bar pulses on activity, styled like an old incandescent indicator behind
 | Bar | Meaning |
 |-----|---------|
 | **Red** | Claude is blocked on a permission prompt. Pulses until you act. |
-| **Green** | Turn finished, your move. Fades on its own after a couple of minutes. |
+| **Green** | Turn finished, your move. Pulses for a few minutes to catch your eye, then holds steady until you come back. |
 | **Dim grey** | Idle, nothing pending. |
 
-Claude Code also emits a "waiting for your input" nudge ~60s after every turn; that one is deliberately ignored, so a finished session shows green and fades instead of nagging you in red forever.
+Claude Code also emits a "waiting for your input" nudge ~60s after every turn; that one is deliberately ignored, so a finished session shows green and holds steady instead of nagging you in red forever.
 
 Running several sessions at once? The bar shows the most urgent state across all of them: red if *any* session is blocked on a permission, otherwise green if any just finished.
 

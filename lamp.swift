@@ -4,7 +4,7 @@ import Cocoa
 // Each Claude session's hooks write its state to ~/.claude/lamp/sessions/<id>
 // (one word + the terminal's bundle id). The lamp aggregates across sessions:
 //   any session needs input -> red    (pulses until that session is handled)
-//   else any session is done -> green  (auto-dims per session after greenTimeout)
+//   else any session is done -> green  (pulses, then holds steady until acknowledged)
 //   else                     -> dim idle bar
 // Red outranks green. The click target and the single-session focus-clear use
 // the longest-waiting session of the shown color. Knobs are the constants below.
@@ -16,7 +16,8 @@ let minAlpha = 0.05        // dimmest point of the fade (filament never fully co
 let holdFrac = 0.5         // fraction of the cycle held at full brightness before fading
 let coolTau  = 0.05        // exponential cool-down time constant, seconds (smaller = snuffs out faster)
 let pollInterval  = 0.25   // sessions re-scan cadence
-let greenTimeout  = 150.0  // auto-dim a session's green "done" after this many seconds
+let greenPulseDuration = 300.0  // green pulses this long to catch your eye, then holds steady (no auto-dim — it clears on click, focus, or your next prompt)
+let greenSteadyAlpha   = 0.75   // brightness of the steady green held after the pulse window
 let redTimeout    = 600.0  // self-heal: drop a red older than this (abandoned permission prompt)
 let graceDelay    = 2.0    // keep a single-session lamp lit this long before a frontmost terminal clears it
 let idleColor   = NSColor(white: 0.42, alpha: 1.0)                             // dim idle bar
@@ -28,6 +29,8 @@ struct Session { let word: String; let bundle: String; let guid: String; let mti
 final class Lamp: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var blink: Timer?, phase: TimeInterval = 0, color = idleColor
+    var pulseWindow: TimeInterval = .infinity   // pulse for this long, then hold steady (green); red pulses forever
+    var steadyShown = false                     // drew the steady frame once, so the live timer can idle-skip
     var currentKey: String?     // "notify" / "done" / nil — what the lamp is showing now
     var targetBundle: String?   // terminal of the session to jump to on click
     var targetGuid: String?     // iTerm session GUID, to raise its exact window/tab
@@ -77,11 +80,11 @@ final class Lamp: NSObject {
         let now = Date().timeIntervalSince1970
         let fm = FileManager.default
 
-        // Per-session auto-dim: greens after greenTimeout, reds after redTimeout
-        // (a self-heal backstop so an abandoned permission-red can't pin the lamp).
+        // Self-heal backstop: drop a red older than redTimeout so an abandoned
+        // permission prompt can't pin the lamp. Greens don't auto-expire — they
+        // hold steady until you click, focus the terminal, or send your next prompt.
         func expired(_ s: Session) -> Bool {
-            (s.word == "done" && now - s.mtime > greenTimeout)
-                || (s.word == "notify" && now - s.mtime > redTimeout)
+            s.word == "notify" && now - s.mtime > redTimeout
         }
         var sessions = scanSessions()
         for s in sessions where expired(s) { try? fm.removeItem(atPath: s.path) }
@@ -115,18 +118,25 @@ final class Lamp: NSObject {
         guard key != currentKey else { return }   // same color — keep the pulse running
         currentKey = key
         switch key {
-        case "notify": start(notifyColor)
-        case "done":   start(doneColor)
+        case "notify": start(notifyColor, pulseWindow: .infinity)
+        case "done":   start(doneColor, pulseWindow: greenPulseDuration)
         default:       stop()
         }
     }
 
-    func start(_ c: NSColor) {
-        color = c; phase = 0
+    func start(_ c: NSColor, pulseWindow: TimeInterval) {
+        color = c; phase = 0; self.pulseWindow = pulseWindow; steadyShown = false
         blink?.invalidate()
         blink = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] _ in
             guard let s = self else { return }
             s.phase += frameInterval
+            if s.phase > s.pulseWindow {            // pulse window elapsed -> stop blinking, hold steady
+                if !s.steadyShown {                 // draw the steady frame once; then the timer just idles,
+                    s.steadyShown = true            // kept alive so the focus-clear still sees blink != nil
+                    s.item.button?.image = Lamp.bar(s.color.withAlphaComponent(greenSteadyAlpha))
+                }
+                return
+            }
             let cycle = 2 * blinkInterval
             let t = s.phase.truncatingRemainder(dividingBy: cycle)   // seconds into the pulse
             let riseT = 0.02, holdT = holdFrac * cycle               // snap on, then hold at full
