@@ -29,6 +29,7 @@ cp "$REPO_DIR/lamp.swift" "$INSTALL_DIR/lamp.swift"
 cp "$REPO_DIR/set-lamp.sh" "$SCRIPT"
 chmod +x "$SCRIPT"
 swiftc -O "$INSTALL_DIR/lamp.swift" -o "$BIN"
+codesign -s - --force "$BIN" 2>/dev/null  # ad-hoc sign so the iTerm Automation grant persists
 swiftc -O "$REPO_DIR/hooks.swift" -o "$HOOKS_BIN"
 
 # Merge the hooks into settings.json (backs the file up first).
