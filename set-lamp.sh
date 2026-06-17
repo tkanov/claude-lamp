@@ -1,7 +1,7 @@
 #!/bin/bash
 # claude-lamp hook target. Writes per-session state to
-# ~/.claude/lamp/sessions/<session_id> (state word + the terminal's bundle id;
-# session id parsed from the event JSON on stdin with sed, no jq).
+# ~/.claude/lamp/sessions/<session_id> (state word + terminal bundle id + iTerm
+# session GUID; session id parsed from the event JSON on stdin with sed, no jq).
 #   notify -> red, EXCEPT Claude's idle "waiting for your input" nudge, which
 #             fires ~60s after every turn and re-fires each minute. Ignoring it
 #             is what keeps a finished session from flipping back to red forever.
@@ -27,5 +27,5 @@ f="$DIR/$sid"
 if [ "$word" = "off" ]; then
     rm -f "$f"
 else
-    printf '%s\t%s' "$word" "${__CFBundleIdentifier:-}" > "$f"
+    printf '%s\t%s\t%s' "$word" "${__CFBundleIdentifier:-}" "${ITERM_SESSION_ID##*:}" > "$f"
 fi

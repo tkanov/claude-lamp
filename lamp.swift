@@ -23,13 +23,14 @@ let idleColor   = NSColor(white: 0.42, alpha: 1.0)                             /
 let notifyColor = NSColor(srgbRed: 0.88, green: 0.27, blue: 0.22, alpha: 1.0)  // red: input/attention needed
 let doneColor   = NSColor(srgbRed: 0.00, green: 0.70, blue: 0.32, alpha: 1.0)  // green: turn done
 
-struct Session { let word: String; let bundle: String; let mtime: TimeInterval; let path: String }
+struct Session { let word: String; let bundle: String; let guid: String; let mtime: TimeInterval; let path: String }
 
 final class Lamp: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var blink: Timer?, phase: TimeInterval = 0, color = idleColor
     var currentKey: String?     // "notify" / "done" / nil — what the lamp is showing now
     var targetBundle: String?   // terminal of the session to jump to on click
+    var targetGuid: String?     // iTerm session GUID, to raise its exact window/tab
     var targetPath: String?     // that session's state file, cleared when clicked
 
     override init() {
@@ -66,6 +67,7 @@ final class Lamp: NSObject {
             let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\t")
             out.append(Session(word: parts.first ?? "",
                                bundle: parts.count > 1 ? parts[1] : "",
+                               guid: parts.count > 2 ? parts[2] : "",
                                mtime: d.timeIntervalSince1970, path: path))
         }
         return out
@@ -108,6 +110,7 @@ final class Lamp: NSObject {
 
     func apply(_ key: String?, winner: Session?) {
         targetBundle = (winner?.bundle.isEmpty == false) ? winner?.bundle : nil
+        targetGuid = (winner?.guid.isEmpty == false) ? winner?.guid : nil
         targetPath = winner?.path
         guard key != currentKey else { return }   // same color — keep the pulse running
         currentKey = key
@@ -148,12 +151,50 @@ final class Lamp: NSObject {
             item.button?.performClick(nil)
             item.menu = nil            // detach so left-click dismisses next time
         } else {
-            if let id = targetBundle {
+            // Bundle id only names the app; with several terminal windows open it
+            // can't say which one asked. For iTerm we have the session GUID, so raise
+            // that exact window/tab. Other terminals fall back to app activation.
+            if targetBundle == "com.googlecode.iterm2", let guid = targetGuid {
+                raiseITermSession(guid)
+            } else if let id = targetBundle {
                 NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate()
             }
             if let p = targetPath { try? FileManager.default.removeItem(atPath: p) }  // acknowledge this signal
             // the next poll re-aggregates the remaining sessions
         }
+    }
+
+    // Bring just the one iTerm window forward. Two steps, deliberately split:
+    //   1. AppleScript `select` makes the target iTerm's current window/tab/session.
+    //      No `activate` here — that command raises ALL of iTerm's windows. select
+    //      alone reorders within iTerm while it's still in the background, unseen.
+    //   2. App-level activate raises only the front (now = target) window, leaving
+    //      the sibling windows where they were.
+    // `return` after selecting: select reorders windows, corrupting the loop's
+    // positional refs if iteration continued.
+    func raiseITermSession(_ guid: String) {
+        let script = """
+        tell application "iTerm2"
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in sessions of t
+                if (id of s) is "\(guid)" then
+                  select w
+                  select t
+                  select s
+                  return
+                end if
+              end repeat
+            end repeat
+          end repeat
+        end tell
+        """
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", script]
+        try? p.run()
+        p.waitUntilExit()   // select must finish before we bring iTerm forward
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.googlecode.iterm2").first?.activate()
     }
 }
 

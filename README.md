@@ -46,7 +46,7 @@ Restart Claude Code afterward so the hooks load. Nothing prebuilt is downloaded:
 
 ## Using it
 
-- **Left-click** the bar to jump to the longest-waiting session's terminal and clear that signal.
+- **Left-click** the bar to jump to the longest-waiting session's terminal and clear that signal. In iTerm this raises the exact window/tab that lit the bar; macOS will ask once to allow controlling iTerm.
 - **Right-click** to Quit.
 
 Red persists until you act on it: submit a prompt in that session (its `off` hook) or click the lamp. Green clears on your next prompt, on the timeout, or, running a single session, when you focus its terminal after a brief grace. With multiple sessions active that focus-clear stands down, because focusing one window can't say which session you meant.
@@ -62,7 +62,7 @@ launchctl kickstart -k gui/$(id -u)/claude-lamp
 
 ## How it works
 
-A Claude Code hook is a short-lived command and can't hold an animated icon, so there are two pieces: a persistent menu-bar app that runs the animation, and hooks that write a state word plus the terminal's bundle id to `~/.claude/lamp/sessions/<session-id>`, one file per session. The app polls that directory and shows the most urgent state across sessions (red outranks green), pruning each as it clears or times out.
+A Claude Code hook is a short-lived command and can't hold an animated icon, so there are two pieces: a persistent menu-bar app that runs the animation, and hooks that write a state word, the terminal's bundle id, and (in iTerm) its session id to `~/.claude/lamp/sessions/<session-id>`, one file per session. The app polls that directory and shows the most urgent state across sessions (red outranks green), pruning each as it clears or times out.
 
 ## Uninstall
 
@@ -75,7 +75,7 @@ Restart Claude Code afterward to drop the hooks from the running session.
 ## Caveats
 
 - The dot is a single color: with parallel sessions it shows the most urgent (red over green), not a count.
-- Click raises the session's terminal *app*, not a specific window, so across several windows of one app it can't jump to the exact one; per-session clearing there comes from each session's own hooks.
+- In iTerm, click jumps to the exact window that lit the bar (matched by its session id). Other terminals raise the *app*, not a specific window, so across several windows they can't jump to the exact one.
 - A session that exits without firing its `off` hook can leave a stale red; left-clicking the bar clears the shown signal.
 - macOS only (AppKit menu bar).
 
