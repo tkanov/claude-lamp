@@ -96,8 +96,9 @@ final class Lamp: NSObject {
 
         // Focus-clear the green "done" when its single session's terminal is
         // frontmost (after a grace). Red ("needs input") is left to nag until you
-        // act on it — submit a prompt (its off hook) or click the lamp. Only with
-        // one active session, since focusing one window can't say which you meant.
+        // act on it — answer its permission prompt or send your next prompt (both
+        // fire the off hook), or click the lamp. Only with one active session,
+        // since focusing one window can't say which you meant.
         if active.count == 1, let only = active.first, only.word == "done",
            blink != nil, phase >= graceDelay,
            !only.bundle.isEmpty, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == only.bundle {

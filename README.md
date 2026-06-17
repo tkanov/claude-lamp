@@ -16,7 +16,7 @@ A small bar pulses on activity, styled like an old incandescent indicator behind
 
 | Bar | Meaning |
 |-----|---------|
-| **Red** | Claude is blocked on a permission prompt. Pulses until you act. |
+| **Red** | Claude is blocked on a permission prompt. Pulses until you answer it (or click the bar). |
 | **Green** | Turn finished, your move. Pulses for a few minutes to catch your eye, then holds steady until you come back. |
 | **Dim grey** | Idle, nothing pending. |
 
@@ -42,7 +42,7 @@ Restart Claude Code afterward so the hooks load. Nothing prebuilt is downloaded:
 
 1. Installs the app into `~/.claude/lamp/`.
 2. Adds a LaunchAgent at `~/Library/LaunchAgents/claude-lamp.plist` (starts at login, relaunches on crash, stays quit when you quit it).
-3. Merges three hooks (`Notification`, `Stop`, `UserPromptSubmit`) into `~/.claude/settings.json`. Existing hooks are preserved, the file is backed up to `settings.json.bak`, and re-running never duplicates.
+3. Merges four hooks (`Notification`, `Stop`, `UserPromptSubmit`, `PostToolUse`) into `~/.claude/settings.json`. Existing hooks are preserved, the file is backed up to `settings.json.bak`, and re-running never duplicates.
 
 ## Using it
 

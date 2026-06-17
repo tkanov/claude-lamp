@@ -6,7 +6,10 @@
 #             fires ~60s after every turn and re-fires each minute. Ignoring it
 #             is what keeps a finished session from flipping back to red forever.
 #             Permission prompts ("Claude needs your permission ...") stay red.
-#   done   -> green;  off (UserPromptSubmit) -> clear this session.
+#   done   -> green
+#   off    -> clear this session. Fired by UserPromptSubmit (you sent your next
+#             prompt) and by PostToolUse (a granted tool ran) — the latter is what
+#             drops the red once you answer a permission prompt.
 DIR="$HOME/.claude/lamp/sessions"
 mkdir -p "$DIR"
 word="${1:-off}"

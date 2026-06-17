@@ -17,8 +17,10 @@ let mode = args[1]
 let settingsPath = args[2]
 let scriptPath = args[3]
 
-// event -> state word the hook should write
-let mapping = [("Notification", "notify"), ("Stop", "done"), ("UserPromptSubmit", "off")]
+// event -> state word the hook should write. PostToolUse also clears ("off"):
+// after you answer a permission prompt, the granted tool runs and PostToolUse
+// fires — the earliest signal that a red session is unblocked again.
+let mapping = [("Notification", "notify"), ("Stop", "done"), ("UserPromptSubmit", "off"), ("PostToolUse", "off")]
 let fm = FileManager.default
 
 let existingData = fm.contents(atPath: settingsPath)
