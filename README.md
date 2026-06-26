@@ -4,13 +4,25 @@
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-F05138?logo=swift&logoColor=white)
 
-A menu-bar status light and notification indicator for [Claude Code](https://claude.com/claude-code) on macOS, a glanceable way to know the moment Claude needs your input or finishes a turn, without watching the terminal.
+A macOS menu-bar light for [Claude Code](https://claude.com/claude-code): **red** when a session is blocked on a permission prompt, **green** when a turn finishes. Know the moment Claude needs you, without watching the terminal or relying on notifications you'll miss.
 
 <p align="center">
   <img src="assets/demo.gif" alt="claude-lamp in the macOS menu bar: the bar glows red when Claude needs you and green when a turn finishes" width="310">
 </p>
 
 A small bar pulses on activity, styled like an old incandescent indicator behind a diffuser: quick flash, brief hold, exponential cool-down.
+
+## What it solves
+
+Running Claude Code, you hit some version of these:
+
+| The pain | What the lamp does |
+|----------|--------------------|
+| Alt-tabbing to the terminal to check whether Claude is done or waiting on you. | Red or green in the menu bar. No terminal-watching. |
+| Claude blocks on a permission prompt and sits idle while you're in another window. | Turns **red** the moment a prompt blocks; clears when you answer or click it. |
+| You start a long task and don't know when the turn ends. | Turns **green** the instant Claude finishes, holds until you're back. |
+| Several sessions in parallel, no idea which one needs you. | Shows the most urgent state across all of them; click jumps to the exact session. |
+| Desktop notifications are too noisy or too easy to miss. | One light, not a stream of toasts, and it ignores Claude's repeat "waiting for input" pings. |
 
 ## What it shows
 
@@ -21,8 +33,6 @@ A small bar pulses on activity, styled like an old incandescent indicator behind
 | **Dim grey** | Idle, nothing pending. |
 
 Claude Code also emits a "waiting for your input" nudge ~60s after every turn; that one is deliberately ignored, so a finished session shows green and holds steady instead of nagging you in red forever.
-
-Running several sessions at once? The bar shows the most urgent state across all of them: red if *any* session is blocked on a permission, otherwise green if any just finished.
 
 ## Requirements
 
@@ -74,7 +84,7 @@ Restart Claude Code afterward to drop the hooks from the running session.
 
 ## Caveats
 
-- The dot is a single color: with parallel sessions it shows the most urgent (red over green), not a count.
+- The bar is a single color: with parallel sessions it shows the most urgent (red over green), not a count.
 - In iTerm, click jumps to the exact window that lit the bar (matched by its session id). Other terminals raise the *app*, not a specific window, so across several windows they can't jump to the exact one.
 - A session that exits without firing its `off` hook can leave a stale red; left-clicking the bar clears the shown signal.
 - macOS only (AppKit menu bar).
